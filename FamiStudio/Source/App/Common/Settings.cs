@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -245,6 +245,17 @@ namespace FamiStudio
         public static int SnapResolution = DefaultSnapResolution;
         public static bool SnapEnabled = true;
         public static bool SnapEffects = false;
+
+        // Mouse configurations
+        public static int MouseDeleteNote = 2; // 0=None, 1=Left, 2=Right, 3=Middle
+        public static int MousePan = 3;
+        
+        public static bool IsMouseAction(PointerEventArgs e, int actionSetting) {
+            if (actionSetting == 1) return e.Left;
+            if (actionSetting == 2) return e.Right;
+            if (actionSetting == 3) return e.Middle;
+            return false;
+        }
 
         public delegate void EmptyDelegate();
         public static event EmptyDelegate KeyboardShortcutsChanged;
@@ -616,12 +627,17 @@ namespace FamiStudio
             SnapEnabled = ini.GetBool("PianoRoll", "SnapEnabled", true);
             SnapEffects = ini.GetBool("PianoRoll", "SnapEffects", false);
 
+            MouseDeleteNote = ini.GetInt("Mouse", "DeleteNote", 2);
+            MousePan = ini.GetInt("Mouse", "Pan", 3);
+
             // At 4.0.0, we fixed an issue where the snapping was not saved properly. Reset.
             if (Version < 7)
             {
                 SnapResolution = DefaultSnapResolution;
                 SnapEnabled = true;
-                ShowImplicitStopNotes = false;
+                SnapEffects = false;
+                MouseDeleteNote = 2;
+                MousePan = 3;
             }
 
             // At 3.2.0, we added a new Discord screen to the tutorial.
@@ -757,6 +773,9 @@ namespace FamiStudio
             ini.SetInt("PianoRoll", "SnapResolution", SnapResolution);
             ini.SetBool("PianoRoll", "SnapEnabled", SnapEnabled);
             ini.SetBool("PianoRoll", "SnapEffects", SnapEffects);
+
+            ini.SetInt("Mouse", "DeleteNote", MouseDeleteNote);
+            ini.SetInt("Mouse", "Pan", MousePan);
 
             Directory.CreateDirectory(GetConfigFilePath());
 

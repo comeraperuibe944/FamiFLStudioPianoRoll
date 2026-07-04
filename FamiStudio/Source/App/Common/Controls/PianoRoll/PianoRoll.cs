@@ -458,8 +458,9 @@ namespace FamiStudio
         
         public bool CanCopy       => IsActiveControl && IsSelectionValid() && (editMode == EditionMode.Channel || editMode == EditionMode.Envelope || editMode == EditionMode.Arpeggio);
         public bool CanCopyAsText => IsActiveControl && IsSelectionValid() && (editMode == EditionMode.Envelope || editMode == EditionMode.Arpeggio);
-        public bool CanPaste      => IsActiveControl && IsSelectionValid() && (editMode == EditionMode.Channel && ClipboardUtils.ContainsNotes || (editMode == EditionMode.Envelope || editMode == EditionMode.Arpeggio) && ClipboardUtils.ContainsEnvelope);
+        public bool CanPaste      => IsActiveControl && ((editMode == EditionMode.Channel && ClipboardUtils.ContainsNotes) || (IsSelectionValid() && (editMode == EditionMode.Envelope || editMode == EditionMode.Arpeggio) && ClipboardUtils.ContainsEnvelope));
         public bool CanDelete     => IsActiveControl && IsSelectionValid() && (editMode == EditionMode.Channel || editMode == EditionMode.Envelope || editMode == EditionMode.Arpeggio || editMode == EditionMode.DPCM);
+        public bool IsSelectionMode { get; set; } = false;
         public bool IsActiveControl => App != null && App.ActiveControl == this;
 
         public static int DefaultPianoKeyWidth => DefaultNoteSizeY;
@@ -2270,7 +2271,23 @@ namespace FamiStudio
 
         private void CopyNotes()
         {
-            ClipboardUtils.SaveNotes(App.Project, GetSelectedNotes(false));
+            var notes = GetSelectedNotes(false);
+            if (notes == null) return;
+            
+            int firstNonEmpty = -1;
+            for (int i = 0; i < notes.Length; i++) {
+                if (notes[i] != null && !notes[i].IsEmpty) {
+                    firstNonEmpty = i;
+                    break;
+                }
+            }
+            if (firstNonEmpty > 0) {
+                var newNotes = new Note[notes.Length - firstNonEmpty];
+                Array.Copy(notes, firstNonEmpty, newNotes, 0, newNotes.Length);
+                notes = newNotes;
+            }
+
+            ClipboardUtils.SaveNotes(App.Project, notes);
         }
 
         private void CutNotes()
@@ -2345,8 +2362,6 @@ namespace FamiStudio
 
         private void PasteNotes(bool pasteNotes, int pasteFxMask, bool mix, int repeat, ClipboardImportFlags instImportFlags, ClipboardImportFlags arpImportFlags, ClipboardImportFlags sampleImportFlags)
         {
-            if (!IsSelectionValid())
-                return;
 
             var createAnythingMissing =
                 instImportFlags.HasFlag(ClipboardImportFlags.CreateMissing) ||
@@ -2355,7 +2370,7 @@ namespace FamiStudio
 
             App.UndoRedoManager.BeginTransaction(createAnythingMissing ? TransactionScope.Project : TransactionScope.Channel, Song.Id, editChannel);
 
-            for (int i = 0; i < repeat && IsSelectionValid(); i++)
+            for (int i = 0; i < repeat; i++)
             {
                 var notes = ClipboardUtils.LoadNotes(App.Project, instImportFlags, arpImportFlags, sampleImportFlags);
 
@@ -2364,13 +2379,25 @@ namespace FamiStudio
                     App.UndoRedoManager.AbortTransaction();
                     return;
                 }
+                
+                int pasteLocation = App.CurrentFrame;
+                if (IsSelectionValid()) {
+                    pasteLocation = selectionMin;
+                }
 
-                ReplaceNotes(notes, selectionMin, false, pasteNotes, pasteFxMask, mix);
+                ReplaceNotes(notes, pasteLocation, false, pasteNotes, pasteFxMask, mix);
 
                 if (i != repeat - 1)
                 {
-                    int selectionSize = selectionMax - selectionMin + 1;
-                    SetSelection(selectionMin + selectionSize, selectionMax + selectionSize);
+                    if (IsSelectionValid())
+                    {
+                        int selectionSize = selectionMax - selectionMin + 1;
+                        SetSelection(selectionMin + selectionSize, selectionMax + selectionSize);
+                    }
+                    else
+                    {
+                        App.SeekSong(App.CurrentFrame + notes.Length);
+                    }
                 }
             }
 
@@ -5649,7 +5676,7 @@ namespace FamiStudio
 
         private bool HandleMouseDownPan(PointerEventArgs e)
         {
-            bool middle = e.Middle || (e.Left && ModifierKeys.IsAltDown && Settings.AltLeftForMiddle);
+            bool middle = Settings.IsMouseAction(e, Settings.MousePan) || (e.Left && ModifierKeys.IsAltDown && Settings.AltLeftForMiddle);
 
             if (middle && e.Y > headerSizeY && e.X > pianoSizeX)
             {
@@ -5737,7 +5764,7 @@ namespace FamiStudio
 
         private bool HandleMouseDownHeaderSelection(PointerEventArgs e)
         {
-            if (e.Right && IsPointInHeader(e.X, e.Y))
+            if (Settings.IsMouseAction(e, Settings.MouseDeleteNote) && IsPointInHeader(e.X, e.Y))
             {
                 e.DelayRightClick(); // Need to wait and see if its a context menu click or not.
                 return true;
@@ -5759,7 +5786,7 @@ namespace FamiStudio
 
         private bool HandleMouseDownEnvelopeSelection(PointerEventArgs e)
         {
-            if (e.Right && (IsPointInHeaderTopPart(e.X, e.Y) || IsPointInEffectPanel(e.X, e.Y) || IsPointInNoteArea(e.X, e.Y)))
+            if (Settings.IsMouseAction(e, Settings.MouseDeleteNote) && (IsPointInHeaderTopPart(e.X, e.Y) || IsPointInEffectPanel(e.X, e.Y) || IsPointInNoteArea(e.X, e.Y)))
             {
                 e.DelayRightClick(); // Need to wait and see if its a context menu click or not.
                 return true;
@@ -5800,7 +5827,7 @@ namespace FamiStudio
 
         private bool HandleMouseDownAltZoom(PointerEventArgs e)
         {
-            if (e.Right && ModifierKeys.IsAltDown && Settings.AltZoomAllowed)
+            if (Settings.IsMouseAction(e, Settings.MouseDeleteNote) && ModifierKeys.IsAltDown && Settings.AltZoomAllowed)
             {
                 StartCaptureOperation(e.X, e.Y, CaptureOperation.AltZoom);
                 return true;
@@ -5840,7 +5867,7 @@ namespace FamiStudio
             var canLoop    = env.CanLoop    || (rep != null && rep.CanLoop);
             var canRelease = env.CanRelease || (rep != null && rep.CanRelease);
 
-            if (((e.Left && canLoop) || (e.Right && canRelease && EditEnvelope.Loop >= 0)) && IsPointInHeaderBottomPart(e.X, e.Y))
+            if (((e.Left && canLoop) || (Settings.IsMouseAction(e, Settings.MouseDeleteNote) && canRelease && EditEnvelope.Loop >= 0)) && IsPointInHeaderBottomPart(e.X, e.Y))
             {
                 CaptureOperation op = e.Left ? CaptureOperation.DragLoop : CaptureOperation.DragRelease;
                 StartCaptureOperation(e.X, e.Y, op);
@@ -5909,7 +5936,7 @@ namespace FamiStudio
 
                     return true;
                 }
-                else if (e.Right)
+                else if (Settings.IsMouseAction(e, Settings.MouseDeleteNote))
                 {
                     e.DelayRightClick(); // Wait to see if its a context menu or selection.
                     return true;
@@ -5986,7 +6013,7 @@ namespace FamiStudio
         private bool HandleMouseDownWaveSelection(PointerEventArgs e)
         {
             bool left  = e.Left;
-            bool right = e.Right;
+            bool right = Settings.IsMouseAction(e, Settings.MouseDeleteNote);
 
             if ((left || right) && (IsPointInNoteArea(e.X, e.Y) || IsPointInHeader(e.X, e.Y)))
             {
@@ -6003,7 +6030,7 @@ namespace FamiStudio
         private bool HandleMouseDownChannelNote(PointerEventArgs e)
         {
             bool left  = e.Left;
-            bool right = e.Right;
+            bool right = Settings.IsMouseAction(e, Settings.MouseDeleteNote);
 
             if (GetLocationForCoord(e.X, e.Y, out var mouseLocation, out byte noteValue))
             {
@@ -6081,13 +6108,29 @@ namespace FamiStudio
                         }
                         else
                         {
-                            StartNoteCreation(e, noteLocation, noteValue);
+                            if (IsSelectionValid())
+                            {
+                                ClearSelection();
+                                MarkDirty();
+                            }
+                            else
+                            {
+                                StartNoteCreation(e, noteLocation, noteValue);
+                            }
                         }
                     }
                 }
-                else if (right && note == null)
+                else if (right)
                 {
-                    e.DelayRightClick(); // Need to wait to tell if its a context menu or selection.
+                    if (note != null && !IsSelectionMode)
+                    {
+                        DeleteSingleNote(noteLocation, mouseLocation, note);
+                        StartCaptureOperation(e.X, e.Y, CaptureOperation.DeleteNotes);
+                    }
+                    else
+                    {
+                        e.DelayRightClick(); // Need to wait to tell if its a context menu or selection.
+                    }
                 }
 
                 MarkDirty();
@@ -6141,7 +6184,7 @@ namespace FamiStudio
             }
 
             bool left  = e.Left;
-            bool right = e.Right;
+            bool right = Settings.IsMouseAction(e, Settings.MouseDeleteNote);
 
             if (captureOperation != CaptureOperation.None && (left || right))
                 return;
@@ -6157,6 +6200,12 @@ namespace FamiStudio
 
             if (editMode == EditionMode.Channel)
             {
+                if (IsSelectionMode && left && IsPointInNoteArea(e.X, e.Y))
+                {
+                    StartSelection(e.X, e.Y);
+                    goto Handled;
+                }
+
                 if (HandleMouseDownSeekBar(e)) goto Handled;
                 if (HandleMouseDownHeaderSelection(e)) goto Handled;
                 if (HandleMouseDownEffectList(e)) goto Handled;
@@ -6202,7 +6251,7 @@ namespace FamiStudio
 
         private bool HandleMouseDownDelayedChannelNotes(PointerEventArgs e)
         {
-            bool right = e.Right;
+            bool right = Settings.IsMouseAction(e, Settings.MouseDeleteNote);
 
             if (right && GetLocationForCoord(e.X, e.Y, out var mouseLocation, out byte noteValue) && mouseLocation.PatternIndex < Song.Length)
             {
@@ -6221,7 +6270,7 @@ namespace FamiStudio
 
         private bool HandleMouseDownDelayedHeaderSelection(PointerEventArgs e)
         {
-            if (e.Right && IsPointInHeader(e.X, e.Y))
+            if (Settings.IsMouseAction(e, Settings.MouseDeleteNote) && IsPointInHeader(e.X, e.Y))
             {
                 StartSelection(e.X, e.Y);
                 return true;
@@ -6232,7 +6281,7 @@ namespace FamiStudio
 
         private bool HandleMouseDownDelayedEffectPanel(PointerEventArgs e)
         {
-            if (e.Right && selectedEffectIdx >= 0 && IsPointInEffectPanel(e.X, e.Y) && GetEffectNoteForCoord(e.X, e.Y, out var location))
+            if (Settings.IsMouseAction(e, Settings.MouseDeleteNote) && selectedEffectIdx >= 0 && IsPointInEffectPanel(e.X, e.Y) && GetEffectNoteForCoord(e.X, e.Y, out var location))
             {
                 var pattern = Song.Channels[editChannel].PatternInstances[location.PatternIndex];
 
@@ -6247,7 +6296,7 @@ namespace FamiStudio
 
         private bool HandleMouseDownDelayedEnvelopeSelection(PointerEventArgs e)
         {
-            if (e.Right && (IsPointInHeaderTopPart(e.X, e.Y) || IsPointInEffectPanel(e.X, e.Y) || IsPointInNoteArea(e.X, e.Y)))
+            if (Settings.IsMouseAction(e, Settings.MouseDeleteNote) && (IsPointInHeaderTopPart(e.X, e.Y) || IsPointInEffectPanel(e.X, e.Y) || IsPointInNoteArea(e.X, e.Y)))
             {
                 StartSelection(e.X, e.Y);
                 return true;
@@ -6258,7 +6307,7 @@ namespace FamiStudio
 
         private bool HandleMouseDownDelayedWaveSelection(PointerEventArgs e)
         {
-            if (e.Right && (IsPointInNoteArea(e.X, e.Y) || IsPointInHeader(e.X, e.Y)))
+            if (Settings.IsMouseAction(e, Settings.MouseDeleteNote) && (IsPointInNoteArea(e.X, e.Y) || IsPointInHeader(e.X, e.Y)))
             {
                 StartSelectWave(e.X, e.Y);
                 return true;
@@ -8186,7 +8235,7 @@ namespace FamiStudio
             MarkDirty();
         }
 
-        private void SelectAll()
+        public void SelectAll()
         {
             if (editMode == EditionMode.Arpeggio ||
                 editMode == EditionMode.Envelope)
@@ -9519,7 +9568,7 @@ namespace FamiStudio
                 return;
             }
 
-            bool middle = e.Middle || (e.Left && ModifierKeys.IsAltDown && Settings.AltLeftForMiddle);
+            bool middle = Settings.IsMouseAction(e, Settings.MousePan) || (e.Left && ModifierKeys.IsAltDown && Settings.AltLeftForMiddle);
 
             UpdateCursor();
             UpdateCaptureOperation(e.X, e.Y);
@@ -9614,7 +9663,7 @@ namespace FamiStudio
 
         private bool HandleMouseUpSnapResolution(PointerEventArgs e)
         {
-            if (e.Right && (IsPointOnSnapResolution(e.X, e.Y) || IsPointOnSnapButton(e.X, e.Y)))
+            if (Settings.IsMouseAction(e, Settings.MouseDeleteNote) && (IsPointOnSnapResolution(e.X, e.Y) || IsPointOnSnapButton(e.X, e.Y)))
             { 
                 var options = new ContextMenuOption[SnapResolutionType.Max - SnapResolutionType.Min + 3];
 
@@ -9644,32 +9693,32 @@ namespace FamiStudio
 
         private bool HandleMouseUpChannelNote(PointerEventArgs e)
         {
-            return e.Right && HandleContextMenuChannelNote(e.X, e.Y);
+            return Settings.IsMouseAction(e, Settings.MouseDeleteNote) && HandleContextMenuChannelNote(e.X, e.Y);
         }
 
         private bool HandleMouseUpChannelHeader(PointerEventArgs e)
         {
-            return e.Right && HandleContextMenuChannelHeader(e.X, e.Y);
+            return Settings.IsMouseAction(e, Settings.MouseDeleteNote) && HandleContextMenuChannelHeader(e.X, e.Y);
         }
 
         private bool HandleMouseUpEffectPanel(PointerEventArgs e)
         {
-            return e.Right && HandleContextMenuEffectPanel(e.X, e.Y);
+            return Settings.IsMouseAction(e, Settings.MouseDeleteNote) && HandleContextMenuEffectPanel(e.X, e.Y);
         }
 
         private bool HandleMouseUpEnvelope(PointerEventArgs e)
         {
-            return e.Right && HandleContextMenuEnvelope(e.X, e.Y);
+            return Settings.IsMouseAction(e, Settings.MouseDeleteNote) && HandleContextMenuEnvelope(e.X, e.Y);
         }
 
         private bool HandleMouseUpDPCMMapping(PointerEventArgs e)
         {
-            return e.Right && HandleContextMenuDPCMMapping(e.X, e.Y);
+            return Settings.IsMouseAction(e, Settings.MouseDeleteNote) && HandleContextMenuDPCMMapping(e.X, e.Y);
         }
 
         private bool HandleMouseUpDPCMVolumeEnvelope(PointerEventArgs e)
         {
-            return e.Right && HandleContextMenuWave(e.X, e.Y);
+            return Settings.IsMouseAction(e, Settings.MouseDeleteNote) && HandleContextMenuWave(e.X, e.Y);
         }
 
         protected override void OnPointerUp(PointerEventArgs e)
@@ -9680,7 +9729,7 @@ namespace FamiStudio
                 return;
             }
 
-            bool middle = e.Middle;
+            bool middle = Settings.IsMouseAction(e, Settings.MousePan);
             bool doMouseUp = false;
 
             if (middle)

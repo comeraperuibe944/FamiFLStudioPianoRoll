@@ -308,18 +308,22 @@ namespace FamiStudio
                 }
                 case ConfigSection.Input:
                 { 
-                    page.AddCheckBox(TrackpadControlsLabel.Colon, Settings.TrackPadControls, TrackpadControlsTooltip); // 0
-                    page.AddCheckBox(ReverseTrackpadXLabel.Colon, Settings.ReverseTrackPadX); // 1
-                    page.AddCheckBox(ReverseTrackpadYLabel.Colon, Settings.ReverseTrackPadY); // 2
-                    page.AddSlider(TrackpadSensitivityLabel.Colon, Settings.TrackPadMoveSensitity, 1.0, 20.0, (v) => $"{v:0.0}"); // 3
-                    page.AddSlider(TrackpadZoomSensitivityLabel.Colon, Settings.TrackPadZoomSensitity, 1.0, 20.0, (v) => $"{v:0.0}"); // 4
-                    page.AddCheckBox(AltLeftEmulatesMiddle.Colon, Settings.AltLeftForMiddle, AltLeftForMiddleTooltip); // 5
-                    page.AddCheckBox(AltRightZoomsInOut.Colon, Settings.AltZoomAllowed, AltZoomAllowedTooltip); // 6
-                    page.SetPropertyEnabled(1, Settings.TrackPadControls);
-                    page.SetPropertyEnabled(2, Settings.TrackPadControls);
+                    string[] mouseOptions = new[] { "None", "Left Click", "Right Click", "Middle Click" };
+                    page.AddDropDownList("Mouse Delete Note:", mouseOptions, mouseOptions[Settings.MouseDeleteNote]); // 0
+                    page.AddDropDownList("Mouse Pan:", mouseOptions, mouseOptions[Settings.MousePan]); // 1
+                    
+                    page.AddCheckBox(TrackpadControlsLabel.Colon, Settings.TrackPadControls, TrackpadControlsTooltip); // 2
+                    page.AddCheckBox(ReverseTrackpadXLabel.Colon, Settings.ReverseTrackPadX); // 3
+                    page.AddCheckBox(ReverseTrackpadYLabel.Colon, Settings.ReverseTrackPadY); // 4
+                    page.AddSlider(TrackpadSensitivityLabel.Colon, Settings.TrackPadMoveSensitity, 1.0, 20.0, (v) => $"{v:0.0}"); // 5
+                    page.AddSlider(TrackpadZoomSensitivityLabel.Colon, Settings.TrackPadZoomSensitity, 1.0, 20.0, (v) => $"{v:0.0}"); // 6
+                    page.AddCheckBox(AltLeftEmulatesMiddle.Colon, Settings.AltLeftForMiddle, AltLeftForMiddleTooltip); // 7
+                    page.AddCheckBox(AltRightZoomsInOut.Colon, Settings.AltZoomAllowed, AltZoomAllowedTooltip); // 8
                     page.SetPropertyEnabled(3, Settings.TrackPadControls);
                     page.SetPropertyEnabled(4, Settings.TrackPadControls);
-                    page.SetPropertyVisible(4, Platform.IsMacOS);
+                    page.SetPropertyEnabled(5, Settings.TrackPadControls);
+                    page.SetPropertyEnabled(6, Settings.TrackPadControls);
+                    page.SetPropertyVisible(6, Platform.IsMacOS);
                     page.PropertyChanged += InputPage_PropertyChanged;
                     break;
                 }
@@ -395,12 +399,12 @@ namespace FamiStudio
 
         private void InputPage_PropertyChanged(PropertyPage props, int propIdx, int rowIdx, int colIdx, object value)
         {
-            if (propIdx == 0)
+            if (propIdx == 2)
             {
-                props.SetPropertyEnabled(1, (bool)value);
-                props.SetPropertyEnabled(2, (bool)value);
                 props.SetPropertyEnabled(3, (bool)value);
                 props.SetPropertyEnabled(4, (bool)value);
+                props.SetPropertyEnabled(5, (bool)value);
+                props.SetPropertyEnabled(6, (bool)value);
             }
         }
 
@@ -614,13 +618,15 @@ namespace FamiStudio
                     Settings.MetronomeVolume = newMetronomeVolume;
 
                     // Input
-                    Settings.TrackPadControls = pageInput.GetPropertyValue<bool>(0);
-                    Settings.ReverseTrackPadX = pageInput.GetPropertyValue<bool>(1);
-                    Settings.ReverseTrackPadY = pageInput.GetPropertyValue<bool>(2);
-                    Settings.TrackPadMoveSensitity = (float)pageInput.GetPropertyValue<double>(3);
-                    Settings.TrackPadZoomSensitity = (float)pageInput.GetPropertyValue<double>(4);
-                    Settings.AltLeftForMiddle = pageInput.GetPropertyValue<bool>(5);
-                    Settings.AltZoomAllowed = pageInput.GetPropertyValue<bool>(6);
+                    Settings.MouseDeleteNote = pageInput.GetSelectedIndex(0);
+                    Settings.MousePan = pageInput.GetSelectedIndex(1);
+                    Settings.TrackPadControls = pageInput.GetPropertyValue<bool>(2);
+                    Settings.ReverseTrackPadX = pageInput.GetPropertyValue<bool>(3);
+                    Settings.ReverseTrackPadY = pageInput.GetPropertyValue<bool>(4);
+                    Settings.TrackPadMoveSensitity = (float)pageInput.GetPropertyValue<double>(5);
+                    Settings.TrackPadZoomSensitity = (float)pageInput.GetPropertyValue<double>(6);
+                    Settings.AltLeftForMiddle = pageInput.GetPropertyValue<bool>(7);
+                    Settings.AltZoomAllowed = pageInput.GetPropertyValue<bool>(8);
 
                     // Mixer.
                     mixerProperties.Apply();

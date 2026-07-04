@@ -12,7 +12,9 @@
 *.args.json
 
 FamiStudio/bin/
+bin/
 obj/
+FamiStudio/obj/
 .vs/
 Debug/
 Release/

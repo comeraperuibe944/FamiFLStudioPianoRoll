@@ -10,7 +10,8 @@ namespace FamiStudio
         private Button buttonOpen;
         private Button buttonSave;
         private Button buttonExport;
-        private Button buttonCopy;
+        private Button buttonSelectMode;
+                private Button buttonCopy;
         private Button buttonCut;
         private Button buttonPaste;
         private Button buttonDelete;
@@ -219,6 +220,18 @@ namespace FamiStudio
             buttonExport = CreateToolbarButton("Export", "Export");
             buttonExport.Click += ButtonExport_Click;
             buttonExport.PointerUp += ButtonExport_PointerUpEvent;
+            
+            buttonSelectMode = CreateToolbarButton("Drag", "Select Mode");
+            buttonSelectMode.ToolTip = "Selection Mode (Like FL Studio)";
+            buttonSelectMode.Click += (sender) => { 
+                App.PianoRoll.IsSelectionMode = !App.PianoRoll.IsSelectionMode; 
+                sender.MarkDirty();
+            };
+            buttonSelectMode.ImageEvent += (Control sender, ref Color tint) => { 
+                if (App.PianoRoll != null && App.PianoRoll.IsSelectionMode) tint = Theme.DarkRedColor; 
+                return "Drag"; 
+            };
+            
 
             buttonCopy = CreateToolbarButton("Copy", "Copy");
             buttonCopy.Click += ButtonCopy_Click;
