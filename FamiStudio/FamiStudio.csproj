@@ -173,6 +173,7 @@
     <Compile Include="Source\App\Common\Dialogs\ConfigDialog.cs" />
     <Compile Include="Source\App\Common\Dialogs\DeleteSpecialDialog.cs" />
     <Compile Include="Source\App\Common\Dialogs\ExportDialog.cs" />
+    <Compile Include="Source\App\Common\Dialogs\OscilloscopeFullscreenDialog.cs" />
     <Compile Include="Source\App\Common\Dialogs\MidiImportDialog.cs" />
     <Compile Include="Source\App\Common\Dialogs\NsfImportDialog.cs" />
     <Compile Include="Source\App\Common\Dialogs\PasteConflictDialog.cs" />
@@ -1300,3 +1301,4 @@
     </Content>
   </ItemGroup>
 </Project>
+

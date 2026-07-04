@@ -769,9 +769,10 @@ namespace FamiStudio
                         
                         if (oscilloscope.Visible)
                         {
+                            var oscSizeX = DpiScaling.ScaleForWindow(350);
                             x += margin;
-                            oscilloscope.Move(x, margin, timecodeOscSizeX, Height - margin * 2);
-                            x += timecodeOscSizeX + margin;
+                            oscilloscope.Move(x, margin, oscSizeX, Height - margin * 2);
+                            x += oscSizeX + margin;
                         }
                     }
                 }

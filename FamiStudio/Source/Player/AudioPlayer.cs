@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Threading;
@@ -14,6 +14,8 @@ namespace FamiStudio
         public class FrameAudioData
         {
             public short[] samples;
+            public short[][] channelSamples;
+            public int[] triggers;
             public int   playPosition;
             public int   triggerSample = NesApu.TRIGGER_NONE;
             public int   metronomePosition;
@@ -142,13 +144,16 @@ namespace FamiStudio
                 return null;
             }
 
-            // If we are driving the toolbar oscilloscope, provide samples.
-            if (oscilloscope != null)
-                oscilloscope.AddSamples(data.samples, data.triggerSample);
+            if (data.samples != null)
+            {
+                if (oscilloscope != null && data.channelSamples != null)
+                    oscilloscope.AddSamples(data.channelSamples, data.triggers);
+                else if (oscilloscope != null)
+                    oscilloscope.AddSamples(new short[][] { data.samples }, new int[] { data.triggerSample });
 
-            // Mix in metronome if needed.
-            if (data.metronomePosition >= 0)
-                data.samples = MixSamples(data.samples, metronomeSound, data.metronomePosition, data.metronomePitch, data.metronomeVolume);
+                if (data.metronomePosition >= 0)
+                    data.samples = MixSamples(data.samples, metronomeSound, data.metronomePosition, data.metronomePitch, data.metronomeVolume);
+            }
 
             return data.samples;
         }
@@ -203,6 +208,36 @@ namespace FamiStudio
             FrameAudioData data = new FrameAudioData();
 
             data.samples = base.EndFrame();
+
+            if (NesApu.MirrorToOscilloscope && oscilloscope != null && (apuIndex == NesApu.APU_SONG || apuIndex == NesApu.APU_INSTRUMENT))
+            {
+                data.channelSamples = new short[5][];
+                data.triggers = new int[5];
+
+                for (int i = 0; i < 5; i++)
+                {
+                    int oscApuIdx = NesApu.APU_WAV_EXPORT + i;
+                    NesApu.EndFrame(oscApuIdx);
+                    
+                    var numTotalSamples = NesApu.SamplesAvailable(oscApuIdx);
+                    var samples = new short[numTotalSamples * (stereo ? 2 : 1)];
+
+                    if (numTotalSamples > 0)
+                    {
+                        unsafe
+                        {
+                            fixed (short* ptr = &samples[0])
+                            {
+                                NesApu.ReadSamples(oscApuIdx, new IntPtr(ptr), numTotalSamples);
+                            }
+                        }
+                    }
+                    
+                    data.channelSamples[i] = samples;
+                    data.triggers[i] = NesApu.GetChannelTrigger(oscApuIdx, NesApu.APU_EXPANSION_NONE, i);
+                }
+            }
+
             data.metronomePosition = metronomePlayPosition;
             data.playPosition = playPosition;
 

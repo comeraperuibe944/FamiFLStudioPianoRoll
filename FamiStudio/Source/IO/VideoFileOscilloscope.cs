@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 
 namespace FamiStudio
@@ -25,7 +25,7 @@ namespace FamiStudio
                 (smallChannelText ? fonts.FontMediumBold : fonts.FontVeryLargeBold) : 
                 (smallChannelText ? fonts.FontMedium     : fonts.FontVeryLarge);
             var textOffsetY = smallChannelText ? 1 : 4;
-            var channelLineWidth = settings.ResY >= 720 ? 5 : 3;
+            var channelLineWidth = 1;
 
             LoadChannelIcons(!smallChannelText);
 
@@ -35,7 +35,7 @@ namespace FamiStudio
                 var c = videoGraphics.DefaultCommandList;
                 var o = videoGraphics.OverlayCommandList;
 
-                videoGraphics.BeginDrawFrame(new Rectangle(0, 0, videoResX, videoResY), true, Theme.DarkGreyColor2);
+                videoGraphics.BeginDrawFrame(new Rectangle(0, 0, videoResX, videoResY), true, Theme.BlackColor);
                 c.PushClipRegion(0, 0, videoResX, videoResY);
 
                 // Channel names + oscilloscope
@@ -53,9 +53,6 @@ namespace FamiStudio
 
                     c.PushTranslation(channelPosX0, channelPosY0);
                     c.PushClipRegion(0, 0, channelResX, channelResY);
-                    
-                    // Gradient
-                    c.FillRectangleGradient(0, 0, channelResX, channelResY, Color.Black, Color.Invisible, true, channelResY / 2);
 
                     // Oscilloscope
                     var oscilloscope = UpdateOscilloscope(s, f);
@@ -64,23 +61,15 @@ namespace FamiStudio
                     c.DrawNiceSmoothLine(oscilloscope, frame.channelData[i].color, settings.OscLineThickness);
                     c.PopTransform();
 
-                    // Icons + text
-                    var channelIconPosX = s.icon.Size.Width / 2;
-                    var channelIconPosY = s.icon.Size.Height / 2;
-
-                    c.FillAndDrawRectangle(channelIconPosX, channelIconPosY, channelIconPosX + s.icon.Size.Width - 1, channelIconPosY + s.icon.Size.Height - 1, Theme.DarkGreyColor2, Theme.LightGreyColor1);
-                    c.DrawTexture(s.icon, channelIconPosX, channelIconPosY, Theme.LightGreyColor1);
-                    c.DrawText(s.channelText, font, channelIconPosX + s.icon.Size.Width + ChannelIconTextSpacing, channelIconPosY + textOffsetY, Theme.LightGreyColor1);
-
                     c.PopClipRegion();
                     c.PopTransform();
                 }
 
                 // Grid lines
                 for (int i = 1; i < numRows; i++)
-                    o.DrawLine(0, i * channelResY, videoResX, i * channelResY, Theme.BlackColor, channelLineWidth);
+                    o.DrawLine(0, i * channelResY, videoResX, i * channelResY, Theme.WhiteColor, channelLineWidth);
                 for (int i = 1; i < numCols; i++)
-                    o.DrawLine(i * channelResX, 0, i * channelResX, videoResY, Theme.BlackColor, channelLineWidth);
+                    o.DrawLine(i * channelResX, 0, i * channelResX, videoResY, Theme.WhiteColor, channelLineWidth);
 
                 c.PopClipRegion();
             });

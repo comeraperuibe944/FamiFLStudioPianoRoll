@@ -16,7 +16,48 @@ namespace FamiStudio
         [DllImport(NesSndEmuDll, CallingConvention = CallingConvention.StdCall, EntryPoint = "NesApuInit")]
         public extern static int Init(int apuIdx, int sampleRate, int bassFreq, int pal, int seperateTnd, int expansion, [MarshalAs(UnmanagedType.FunctionPtr)] DmcReadDelegate dmcCallback);
         [DllImport(NesSndEmuDll, CallingConvention = CallingConvention.StdCall, EntryPoint = "NesApuWriteRegister")]
-        public extern static void WriteRegister(int apuIdx, int addr, int data);
+        private extern static void WriteRegisterInternal(int apuIdx, int addr, int data);
+        public static bool MirrorToOscilloscope 
+        {
+            get 
+            {
+                var app = FamiStudioWindow.Instance;
+                if (app != null && (app.IsOutOfProcessDialogInProgress || (app.IsAsyncDialogInProgress && !(app.TopDialog is OscilloscopeFullscreenDialog))))
+                    return false;
+                return true;
+            }
+        }
+
+        public static void WriteRegister(int apuIdx, int addr, int data)
+        {
+            WriteRegisterInternal(apuIdx, addr, data);
+            if (MirrorToOscilloscope && (apuIdx == APU_SONG || apuIdx == APU_INSTRUMENT))
+            {
+                for (int i = 0; i < 5; i++)
+                {
+                    int oscData = data;
+                    if (addr == APU_SND_CHN)
+                    {
+                        if (i < 4)
+                            oscData = data & (1 << i);
+                        else if (i == 4)
+                            oscData = data & 0x10;
+                    }
+                    WriteRegisterInternal(APU_WAV_EXPORT + i, addr, oscData);
+                }
+            }
+        }
+
+        public static int SkipCycles(int apuIdx, int cycles)
+        {
+            int ret = SkipCyclesInternal(apuIdx, cycles);
+            if (MirrorToOscilloscope && (apuIdx == APU_SONG || apuIdx == APU_INSTRUMENT))
+            {
+                for (int i = 0; i < 5; i++)
+                    SkipCyclesInternal(APU_WAV_EXPORT + i, cycles);
+            }
+            return ret;
+        }
         [DllImport(NesSndEmuDll, CallingConvention = CallingConvention.StdCall, EntryPoint = "NesApuSamplesAvailable")]
         public extern static int SamplesAvailable(int apuIdx);
         [DllImport(NesSndEmuDll, CallingConvention = CallingConvention.StdCall, EntryPoint = "NesApuReadSamples")]
@@ -28,15 +69,52 @@ namespace FamiStudio
         [DllImport(NesSndEmuDll, CallingConvention = CallingConvention.StdCall, EntryPoint = "NesApuEndFrame")]
         public extern static void EndFrame(int apuIdx);
         [DllImport(NesSndEmuDll, CallingConvention = CallingConvention.StdCall, EntryPoint = "NesApuSkipCycles")]
-        public extern static int SkipCycles(int apuIdx, int cycles);
+        private extern static int SkipCyclesInternal(int apuIdx, int cycles);
         [DllImport(NesSndEmuDll, CallingConvention = CallingConvention.StdCall, EntryPoint = "NesApuReset")]
         public extern static void Reset(int apuIdx);
         [DllImport(NesSndEmuDll, CallingConvention = CallingConvention.StdCall, EntryPoint = "NesApuEnableChannel")]
-        public extern static void EnableChannel(int apuIdx, int exp, int idx, int enable);
+        private extern static void EnableChannelInternal(int apuIdx, int exp, int idx, int enable);
+        public static void EnableChannel(int apuIdx, int exp, int idx, int enable)
+        {
+            EnableChannelInternal(apuIdx, exp, idx, enable);
+            if (MirrorToOscilloscope && (apuIdx == APU_SONG || apuIdx == APU_INSTRUMENT))
+            {
+                if (exp == ExpansionType.None && idx < 5)
+                {
+                    // For the 5 oscilloscope APUs, we only enable the specific channel they are assigned to.
+                    // The other channels are forced to 0 (disabled).
+                    for (int i = 0; i < 5; i++)
+                    {
+                        int enableOsc = (i == idx) ? enable : 0;
+                        EnableChannelInternal(APU_WAV_EXPORT + i, exp, idx, enableOsc);
+                    }
+                }
+            }
+        }
+        public static void StartSeeking(int apuIdx)
+        {
+            StartSeekingInternal(apuIdx);
+            if (MirrorToOscilloscope && (apuIdx == APU_SONG || apuIdx == APU_INSTRUMENT))
+            {
+                for (int i = 0; i < 5; i++)
+                    StartSeekingInternal(APU_WAV_EXPORT + i);
+            }
+        }
         [DllImport(NesSndEmuDll, CallingConvention = CallingConvention.StdCall, EntryPoint = "NesApuStartSeeking")]
-        public extern static void StartSeeking(int apuIdx);
+        private extern static void StartSeekingInternal(int apuIdx);
+        
+        public static void StopSeeking(int apuIdx)
+        {
+            StopSeekingInternal(apuIdx);
+            if (MirrorToOscilloscope && (apuIdx == APU_SONG || apuIdx == APU_INSTRUMENT))
+            {
+                for (int i = 0; i < 5; i++)
+                    StopSeekingInternal(APU_WAV_EXPORT + i);
+            }
+        }
         [DllImport(NesSndEmuDll, CallingConvention = CallingConvention.StdCall, EntryPoint = "NesApuStopSeeking")]
-        public extern static void StopSeeking(int apuIdx);
+        private extern static void StopSeekingInternal(int apuIdx);
+        
         [DllImport(NesSndEmuDll, CallingConvention = CallingConvention.StdCall, EntryPoint = "NesApuIsSeeking")]
         public extern static int IsSeeking(int apuIdx);
         [DllImport(NesSndEmuDll, CallingConvention = CallingConvention.StdCall, EntryPoint = "NesApuTrebleEq")]
@@ -893,6 +971,35 @@ namespace FamiStudio
         }
 
         public static void InitAndReset(
+            int apuIdx, 
+            int sampleRate,
+            float globalVolumeDb,
+            int bassCutoffHz,
+            ExpansionMixer[] expMixerSettings,
+            bool pal, 
+            bool namcoMix,
+            int seperateTndMode, 
+            int expansions, 
+            int numNamcoChannels, 
+            [MarshalAs(UnmanagedType.FunctionPtr)] DmcReadDelegate dmcCallback)
+        {
+            if (MirrorToOscilloscope && (apuIdx == APU_SONG || apuIdx == APU_INSTRUMENT))
+            {
+                for (int i = 0; i < 5; i++)
+                {
+                    InitAndResetInternal(APU_WAV_EXPORT + i, sampleRate, globalVolumeDb, bassCutoffHz, expMixerSettings, pal, namcoMix, seperateTndMode, APU_EXPANSION_MASK_NONE, 0, dmcCallback);
+                    
+                    // Isolate channel i for oscilloscope APU i
+                    for (int ch = 0; ch < 5; ch++)
+                    {
+                        EnableChannel(APU_WAV_EXPORT + i, ExpansionType.None, ch, (i == ch || (i == 3 && ch == 4)) ? 1 : 0);
+                    }
+                }
+            }
+            InitAndResetInternal(apuIdx, sampleRate, globalVolumeDb, bassCutoffHz, expMixerSettings, pal, namcoMix, seperateTndMode, expansions, numNamcoChannels, dmcCallback);
+        }
+
+        public static void InitAndResetInternal(
             int apuIdx, 
             int sampleRate,
             float globalVolumeDb,

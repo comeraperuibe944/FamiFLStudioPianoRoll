@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 namespace FamiStudio
 {
     public class ChannelStateDpcm : ChannelState
@@ -54,6 +54,12 @@ namespace FamiStudio
                             lock (DPCMSample.ProcessedDataLock)
                             {
                                 NesApu.CurrentSample[apuIdx] = sample.ProcessedData;
+
+                                if (NesApu.MirrorToOscilloscope && (apuIdx == NesApu.APU_SONG || apuIdx == NesApu.APU_INSTRUMENT))
+                                {
+                                    for (int i = 0; i < 4; i++)
+                                        NesApu.CurrentSample[NesApu.APU_WAV_EXPORT + i] = sample.ProcessedData;
+                                }
 
                                 WriteRegister(NesApu.APU_DMC_START, 0, 4, sample.Id);
                                 WriteRegister(NesApu.APU_DMC_LEN, sample.ProcessedData.Length >> 4);

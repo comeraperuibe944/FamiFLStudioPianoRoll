@@ -1703,7 +1703,7 @@ namespace FamiStudio
         {
             Debug.Assert(oscilloscope == null);
 
-            oscilloscope = new OscilloscopeGenerator(project.OutputsStereoAudio);
+            oscilloscope = new OscilloscopeGenerator(5, project.OutputsStereoAudio);
             oscilloscope.Start();
 
             if (instrumentPlayer != null)
@@ -1724,12 +1724,12 @@ namespace FamiStudio
             }
         }
 
-        public float[] GetOscilloscopeGeometry(out bool hHasNonZeroSample)
+        public float[][] GetOscilloscopeGeometries(out bool[] outHasNonZeroSamples)
         {
             if (oscilloscope != null)
-                return oscilloscope.GetGeometry(out hHasNonZeroSample);
+                return oscilloscope.GetGeometries(out outHasNonZeroSamples);
 
-            hHasNonZeroSample = false;
+            outHasNonZeroSamples = null;
             return null;
         }
 

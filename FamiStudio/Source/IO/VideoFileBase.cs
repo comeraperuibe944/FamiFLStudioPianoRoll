@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -525,18 +525,22 @@ namespace FamiStudio
 
                     // Registers + watermark + artist.
                     DrawRegisterValues(frame);
-                    videoGraphics.OverlayCommandList.DrawTexture(watermark, videoResX - watermark.Size.Width, videoResY - watermark.Size.Height);
-
-                    var textY = videoResY - authorText.Count * fonts.FontMediumBold.LineHeight - TextMargin;
-                    for (var i = 0; i < authorText.Count; i++, textY += fonts.FontMediumBold.LineHeight)
+                    
+                    if (!(this is VideoFileOscilloscope))
                     {
-                        // Ghetto drop shadow...
-                        var shadowColor = new Color(0, 0, 0, 96);
-                        videoGraphics.OverlayCommandList.DrawText(authorText[i], fonts.FontMediumBold, TextMargin - 1, textY - 1, shadowColor);
-                        videoGraphics.OverlayCommandList.DrawText(authorText[i], fonts.FontMediumBold, TextMargin - 1, textY + 1, shadowColor);
-                        videoGraphics.OverlayCommandList.DrawText(authorText[i], fonts.FontMediumBold, TextMargin + 1, textY - 1, shadowColor);
-                        videoGraphics.OverlayCommandList.DrawText(authorText[i], fonts.FontMediumBold, TextMargin + 1, textY + 1, shadowColor);
-                        videoGraphics.OverlayCommandList.DrawText(authorText[i], fonts.FontMediumBold, TextMargin, textY, Theme.LightGreyColor1);
+                        videoGraphics.OverlayCommandList.DrawTexture(watermark, videoResX - watermark.Size.Width, videoResY - watermark.Size.Height);
+
+                        var textY = videoResY - authorText.Count * fonts.FontMediumBold.LineHeight - TextMargin;
+                        for (var i = 0; i < authorText.Count; i++, textY += fonts.FontMediumBold.LineHeight)
+                        {
+                            // Ghetto drop shadow...
+                            var shadowColor = new Color(0, 0, 0, 96);
+                            videoGraphics.OverlayCommandList.DrawText(authorText[i], fonts.FontMediumBold, TextMargin - 1, textY - 1, shadowColor);
+                            videoGraphics.OverlayCommandList.DrawText(authorText[i], fonts.FontMediumBold, TextMargin - 1, textY + 1, shadowColor);
+                            videoGraphics.OverlayCommandList.DrawText(authorText[i], fonts.FontMediumBold, TextMargin + 1, textY - 1, shadowColor);
+                            videoGraphics.OverlayCommandList.DrawText(authorText[i], fonts.FontMediumBold, TextMargin + 1, textY + 1, shadowColor);
+                            videoGraphics.OverlayCommandList.DrawText(authorText[i], fonts.FontMediumBold, TextMargin, textY, Theme.LightGreyColor1);
+                        }
                     }
 
                     videoGraphics.EndDrawFrame();

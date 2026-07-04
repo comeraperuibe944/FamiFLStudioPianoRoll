@@ -24,16 +24,47 @@ namespace FamiStudio
             c.PushClipRegion(1, 1, sx - 1, sy - 1);
             c.FillRectangle(0, 0, sx, sy, Theme.BlackColor);
 
-            var oscilloscopeGeometry = App.GetOscilloscopeGeometry(out lastOscilloscopeHadNonZeroSample);
+            bool[] hasNonZeroSamples;
+            var oscilloscopeGeometries = App.GetOscilloscopeGeometries(out hasNonZeroSamples);
+            bool anyNonZero = false;
 
-            if (oscilloscopeGeometry != null && lastOscilloscopeHadNonZeroSample)
+            if (oscilloscopeGeometries != null)
             {
-                float scaleX = sx;
-                float scaleY = sy / -2; // D3D is upside down compared to how we display waves typically.
+                int numChannels = Math.Min(5, oscilloscopeGeometries.Length);
+                float channelWidth = sx / (float)numChannels;
+                float channelHeight = sy;
+                
+                for (int i = 0; i < numChannels; i++)
+                {
+                    var geometry = oscilloscopeGeometries[i];
+                    var hasNonZero = hasNonZeroSamples != null && i < hasNonZeroSamples.Length ? hasNonZeroSamples[i] : false;
+                    anyNonZero |= hasNonZero;
 
-                c.PushTransform(0, sy / 2, scaleX, scaleY);
-                c.DrawNiceSmoothLine(oscilloscopeGeometry, Theme.LightGreyColor2);
-                c.PopTransform();
+                    float xOffset = i * channelWidth;
+                    float yOffset = sy / 2.0f;
+
+                    if (geometry != null && hasNonZero)
+                    {
+                        float scaleX = channelWidth;
+                        // Exaggerate amplitude by 2.5x for better visibility in the small preview
+                        float scaleY = (channelHeight / -2.0f) * 2.5f; 
+
+                        c.PushTransform(xOffset, yOffset, scaleX, scaleY);
+                        c.DrawNiceSmoothLine(geometry, Theme.LightGreyColor2);
+                        c.PopTransform();
+                    }
+                    else
+                    {
+                        c.PushTranslation(xOffset, yOffset);
+                        c.DrawLine(0, 0, channelWidth, 0, Theme.LightGreyColor2);
+                        c.PopTransform();
+                    }
+                    
+                    if (i > 0)
+                    {
+                        c.DrawLine(xOffset, 0, xOffset, sy, Theme.DarkGreyColor4);
+                    }
+                }
             }
             else
             {
@@ -41,6 +72,8 @@ namespace FamiStudio
                 c.DrawLine(0, 0, sx, 0, Theme.LightGreyColor2);
                 c.PopTransform();
             }
+
+            lastOscilloscopeHadNonZeroSample = anyNonZero;
 
             if (Platform.IsMobile)
             {
@@ -52,6 +85,16 @@ namespace FamiStudio
 
             c.PopClipRegion();
             c.DrawRectangle(0, 0, sx, sy, Theme.LightGreyColor2);
+        }
+
+        protected override void OnPointerUp(PointerEventArgs e)
+        {
+            if (e.Right && Platform.IsDesktop)
+            {
+                var dialog = new OscilloscopeFullscreenDialog(App);
+                dialog.ShowDialogAsync((r) => { });
+            }
+            base.OnPointerUp(e);
         }
     }
 }
