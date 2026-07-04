@@ -57,6 +57,7 @@ namespace FamiStudio
         private int autoSaveIndex = 0;
         private float averageTickRateMs = 8.0f;
         private DateTime lastAutoSave;
+        private bool autoSaveDirty = false;
 
         private volatile bool   newReleaseCheckDone = false;
         private volatile bool   newReleaseAvailable = false;
@@ -809,6 +810,7 @@ namespace FamiStudio
                 songPlayer.ForceInstrumentsReload();
             }
 
+            autoSaveDirty = true;
             ConditionalAutoSave();
         }
 
@@ -925,6 +927,7 @@ namespace FamiStudio
 
             ResetEverything();
             InitializeAutoSave();
+            autoSaveDirty = false;
             InitializeAudioPlayers();
             FreeExportDialog();
             InitializeUndoRedoManager();
@@ -1185,6 +1188,7 @@ namespace FamiStudio
                     undoRedoManager.Clear();
 
                 undoRedoManager.NotifySaved();
+                autoSaveDirty = false;
                 DisplayNotification(ProjectSaveSuccess, false);
             }
             else
@@ -1418,12 +1422,12 @@ namespace FamiStudio
 
         private void ConditionalAutoSave()
         {
-            if (Settings.AutoSaveCopy)
+            if (Settings.AutoSaveCopy && undoRedoManager != null && undoRedoManager.NeedsSaving && autoSaveDirty)
             {
                 var now = DateTime.Now;
                 var timespan = now - lastAutoSave;
 
-                if (timespan.TotalMinutes > 2)
+                if (timespan.TotalSeconds > 60)
                 {
                     if (Platform.IsDesktop)
                     {
@@ -1439,6 +1443,7 @@ namespace FamiStudio
 
                     autoSaveIndex = (autoSaveIndex + 1) % MaxAutosaves;
                     lastAutoSave = now;
+                    autoSaveDirty = false;
                 }
             }
         }
@@ -2451,6 +2456,7 @@ namespace FamiStudio
             CheckNewReleaseDone();
             HighlightPlayingInstrumentNote();
             CheckStopInstrumentNote(deltaTime);
+            ConditionalAutoSave();
         }
 
         public void TickAsyncDialog(float deltaTime)
