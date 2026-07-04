@@ -1431,10 +1431,46 @@ namespace FamiStudio
                 {
                     if (Platform.IsDesktop)
                     {
-                        var path = Settings.GetAutoSaveFilePath();
-                        var filename = Path.Combine(path, $"AutoSave{autoSaveIndex:D2}.fms");
+                        string filename = null;
+                        if (!string.IsNullOrEmpty(project.Filename))
+                        {
+                            try
+                            {
+                                var dir = Path.GetDirectoryName(project.Filename);
+                                var nameWithoutExt = Path.GetFileNameWithoutExtension(project.Filename);
+                                var ext = Path.GetExtension(project.Filename);
+                                filename = Path.Combine(dir, $"{nameWithoutExt}.autosave{ext}");
+                            }
+                            catch
+                            {
+                            }
+                        }
 
-                        SaveProjectCopy(filename);
+                        if (filename == null)
+                        {
+                            var path = Settings.GetAutoSaveFilePath();
+                            filename = Path.Combine(path, $"AutoSave{autoSaveIndex:D2}.fms");
+                        }
+
+                        try
+                        {
+                            SaveProjectCopy(filename);
+                        }
+                        catch
+                        {
+                            if (!string.IsNullOrEmpty(project.Filename))
+                            {
+                                try
+                                {
+                                    var path = Settings.GetAutoSaveFilePath();
+                                    filename = Path.Combine(path, $"AutoSave{autoSaveIndex:D2}.fms");
+                                    SaveProjectCopy(filename);
+                                }
+                                catch
+                                {
+                                }
+                            }
+                        }
                     }
                     else
                     {
